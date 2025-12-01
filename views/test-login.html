@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ar">
+  <head>
+    <meta charset="UTF-8" />
+    <title>تجربة تسجيل الدخول برقم الهاتف</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <style>
+      body {
+        font-family: Arial;
+        padding: 20px;
+        direction: rtl;
+      }
+      input {
+        padding: 10px;
+        margin: 5px;
+        width: 300px;
+        font-size: 16px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        margin-top: 10px;
+        cursor: pointer;
+      }
+      pre {
+        background-color: #eee;
+        padding: 10px;
+        direction: ltr;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>🔐 تسجيل الدخول باستخدام رقم الهاتف (Firebase)</h2>
+
+    <label>رقم الهاتف:</label><br />
+    <input id="phone" type="text" placeholder="+97059XXXXXXX" /><br />
+    <div id="recaptcha-container"></div>
+    <button onclick="sendCode()">📲 إرسال كود التحقق</button>
+
+    <br /><br />
+
+    <label>رمز التحقق:</label><br />
+    <input id="code" type="text" placeholder="ادخل الكود هنا" /><br />
+    <button onclick="verifyCode()">✅ تأكيد الكود والحصول على التوكن</button>
+
+    <h3>🎟️ ID Token:</h3>
+    <pre id="token"></pre>
+
+    <script>
+      // إعداد Firebase
+      const firebaseConfig = {
+        apiKey: "AIzaSyDSlyhvvMOfOM0MFuReHZvNfihEFeNvdIQ",
+        authDomain: "mdad-test.firebaseapp.com",
+        projectId: "mdad-test",
+        storageBucket: "mdad-test.appspot.com",
+        messagingSenderId: "839692512492",
+        appId: "1:839692512492:web:45296527f939edda0049c9",
+        measurementId: "G-JNTJJ0M41L"
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+
+      window.onload = function () {
+        window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier(
+          "recaptcha-container",
+          {
+            size: "normal",
+            callback: function (response) {
+              console.log("reCAPTCHA verified");
+            },
+          }
+        );
+        recaptchaVerifier.render();
+      };
+
+      function sendCode() {
+        const phoneNumber = document.getElementById("phone").value;
+        const appVerifier = window.recaptchaVerifier;
+
+        auth.signInWithPhoneNumber(phoneNumber, appVerifier)
+          .then((confirmationResult) => {
+            window.confirmationResult = confirmationResult;
+            alert("📨 تم إرسال الكود! أدخله الآن.");
+          })
+          .catch((error) => {
+            console.error("خطأ في إرسال الكود:", error);
+            alert("❌ حدث خطأ في إرسال الكود.");
+          });
+      }
+
+      function verifyCode() {
+        const code = document.getElementById("code").value;
+
+        window.confirmationResult
+          .confirm(code)
+          .then((result) => {
+            return result.user.getIdToken();
+          })
+          .then((token) => {
+            document.getElementById("token").innerText = token;
+            alert("🎉 تم تسجيل الدخول! خذ التوكن الآن.");
+          })
+          .catch((error) => {
+            console.error("خطأ في التحقق:", error);
+            alert("❌ كود غير صحيح أو منتهي.");
+          });
+      }
+    </script>
+  </body>
+</html>
