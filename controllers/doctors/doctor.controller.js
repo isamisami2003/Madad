@@ -194,19 +194,53 @@ const getConsultationStats = async (req, res) => {
     }
 
     const doctorId = doctor._id;
+    const limit = parseInt(req.query.limit, 10) || 20;
 
-    const [total, inProgress, completed] = await Promise.all([
+    const [totalAssigned, inProgressCount, completedCount, searchingList, inProgressList, completedList] = await Promise.all([
       ConsultationRequest.countDocuments({ assignedDoctorId: doctorId }),
       ConsultationRequest.countDocuments({ assignedDoctorId: doctorId, status: 'in_progress' }),
-      ConsultationRequest.countDocuments({ assignedDoctorId: doctorId, status: 'completed' })
+      ConsultationRequest.countDocuments({ assignedDoctorId: doctorId, status: 'completed' }),
+      ConsultationRequest.find({ specialty: doctor.specialty, status: 'searching' })
+        .populate({ path: 'userId', select: 'firstName lastName profileImage' })
+        .sort({ createdAt: -1 })
+        .limit(limit),
+      ConsultationRequest.find({ assignedDoctorId: doctorId, status: 'in_progress' })
+        .populate({ path: 'userId', select: 'firstName lastName profileImage' })
+        .sort({ updatedAt: -1 })
+        .limit(limit),
+      ConsultationRequest.find({ assignedDoctorId: doctorId, status: 'completed' })
+        .populate({ path: 'userId', select: 'firstName lastName profileImage' })
+        .sort({ updatedAt: -1 })
+        .limit(limit),
     ]);
 
-    res.json({ total, inProgress, completed });
+    const mapConsult = (c) => ({
+      id: c._id,
+      title: c.title,
+      description: c.description,
+      status: c.status,
+      createdAt: c.createdAt,
+      patient: c.userId ? {
+        firstName: c.userId.firstName,
+        lastName: c.userId.lastName,
+        profileImage: c.userId.profileImage
+      } : null
+    });
+
+    res.json({
+      totalAssigned,
+      inProgressCount,
+      completedCount,
+      searching: searchingList.map(mapConsult),
+      inProgress: inProgressList.map(mapConsult),
+      completed: completedList.map(mapConsult)
+    });
   } catch (err) {
     console.error("Error in getConsultationStats:", err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
 
 const getConsultationDetails = async (req, res) => {
   try {
@@ -376,4 +410,5 @@ module.exports = {
   getConsultationDetails,
   startConsultation,
   endConsultation
+
 };
