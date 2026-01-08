@@ -496,6 +496,7 @@ const endConsultation = async (req, res) => {
 
 module.exports = {
   completeDoctorData,
+  updateDoctorProfile,
   getAvailableConsultations,
   getConsultationStats,
   getLatestAvailableConsultation,
@@ -504,4 +505,5 @@ module.exports = {
   endConsultation
 
 };
+
 
