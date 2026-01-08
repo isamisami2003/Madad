@@ -4,6 +4,7 @@ const ConsultationRequest = require('../../models/consultation-request.model');
 const mongoose = require('mongoose');
 const Joi = require('@hapi/joi');
 const path = require('path');
+const fs = require('fs');
 const dayjs = require("dayjs");
 const relativeTime = require("dayjs/plugin/relativeTime");
 require("dayjs/locale/ar");
@@ -69,6 +70,97 @@ const completeDoctorData = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error', details: err.message });
+  }
+};
+
+const updateDoctorProfile = async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ error: 'Unauthenticated' });
+    }
+
+    if (req.user.role !== 'doctor') {
+      return res.status(403).json({ error: 'Access denied, doctors only' });
+    }
+
+    const userId = new mongoose.Types.ObjectId(req.user._id);
+
+    const raw = req.body || {};
+    const allowed = ['specialty', 'licenseNumber', 'yearsOfExperience', 'workPlace'];
+    const picked = {};
+
+    for (const key of allowed) {
+      if (raw[key] !== undefined) {
+        picked[key] = raw[key];
+      }
+    }
+
+    const { error } = updateDoctorSchema.validate(picked);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const doctor = await Doctor.findOne({ userId });
+    if (!doctor) {
+      return res.status(404).json({ error: 'Doctor profile not found' });
+    }
+
+    Object.assign(doctor, picked);
+
+    if (req.files?.degreeFiles && req.files.degreeFiles.length > 0) {
+      if (doctor.degreeFiles?.length) {
+        doctor.degreeFiles.forEach(filePath => {
+          const fullPath = path.join(
+            __dirname,
+            '..',
+            filePath.replace(/^\/+/, '') 
+          );
+
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        });
+      }
+
+      doctor.degreeFiles = req.files.degreeFiles.map(
+        f => `/doctorFiles/${f.filename}`
+      );
+    }
+
+
+    if (req.files?.licenseFiles && req.files.licenseFiles.length > 0) {
+      if (doctor.licenseFiles?.length) {
+        doctor.licenseFiles.forEach(filePath => {
+          const fullPath = path.join(
+            __dirname,
+            '..',
+            filePath.replace(/^\/+/, '') 
+          );
+
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        });
+      }
+
+      doctor.licenseFiles = req.files.licenseFiles.map(
+        f => `/doctorFiles/${f.filename}`
+      );
+    }
+
+    await doctor.save();
+
+    return res.status(200).json({
+      message: 'Doctor profile updated successfully',
+      doctor,
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      error: 'Server error',
+      details: err.message,
+    });
   }
 };
 
@@ -412,3 +504,4 @@ module.exports = {
   endConsultation
 
 };
+
