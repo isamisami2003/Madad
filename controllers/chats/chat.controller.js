@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Chat = require('../../models/chat.model.js');
 const Message = require('../../models/message.model.js');
 
@@ -578,4 +579,5 @@ module.exports = {
   getConsultationSummary,
   searchChats,
   searchMessages
+
 };
