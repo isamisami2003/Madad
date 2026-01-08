@@ -5,6 +5,7 @@ const authorizeRoles = require('../../middlewares/role');
 const upload = require('../../middlewares/upload');
 const {
   completeDoctorData,
+  updateDoctorProfile,
   getAvailableConsultations,
   getConsultationStats,
   getLatestAvailableConsultation,
@@ -24,12 +25,20 @@ router.patch(
   ]),
      completeDoctorData
 );
-
+router.patch(
+  '/profile/update',
+  upload.fields([
+    { name: 'degreeFiles'},
+    { name: 'licenseFiles'}
+  ]),
+    updateDoctorProfile
+);
 router.get('/consultations/available', getAvailableConsultations);
 router.get('/consultations/latest', getLatestAvailableConsultation);
 router.get('/consultations/stats', getConsultationStats);
 router.get('/consultations/:id', getConsultationDetails);
 router.post('/consultations/:id/start', startConsultation);
 router.post('/consultations/:id/end', endConsultation);
+
 
 module.exports = router;
