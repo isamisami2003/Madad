@@ -64,23 +64,6 @@ const createConsultation = async (req, res) => {
   }
 };
 
-// const getConsultation = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     if (!id) return res.status(400).json({ error: 'consultationId is required' });
-
-//     const consultation = await Consultation.findById(id);
-//     if (!consultation || consultation.userId.toString() !== req.user._id.toString()) {
-//       return res.status(404).json({ error: 'Consultation not found' });
-//     }
-
-//     res.status(200).json({ consultation });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: 'Server error', details: err.message });
-//   }
-// };
-
 const getConsultation = async (req, res) => {
   try {
     const consultationId = req.params.id;
