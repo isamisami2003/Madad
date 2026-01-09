@@ -102,7 +102,7 @@ const getConsultation = async (req, res) => {
         status: consultation.status,
         createdAt: consultation.createdAt,
       },
-      user: {
+      patient: {
         firstName: consultation.userId.firstName,
         lastName: consultation.userId.lastName,
         gender: consultation.userId.gender,
