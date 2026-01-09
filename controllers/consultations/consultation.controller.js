@@ -73,7 +73,6 @@ const getConsultation = async (req, res) => {
       return res.status(400).json({ message: "Invalid consultation ID" });
     }
 
-    // جلب الاستشارة + بيانات المستخدم
     const consultation = await Consultation.findById(consultationId)
       .populate({
         path: "userId",
@@ -84,12 +83,10 @@ const getConsultation = async (req, res) => {
       return res.status(404).json({ message: "Consultation not found" });
     }
 
-    // التأكد أن الاستشارة تعود لنفس المستخدم
     if (consultation.userId._id.toString() !== userId.toString()) {
       return res.status(403).json({ message: "Access denied." });
     }
 
-    // حساب العمر
     let age = null;
     if (consultation.userId?.birthDate) {
       age = dayjs().diff(dayjs(consultation.userId.birthDate), "year");
@@ -356,3 +353,4 @@ module.exports = {
   deleteConsultation,
   republishConsultation
 };
+
