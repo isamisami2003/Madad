@@ -6,6 +6,11 @@ const Chat = require('../../models/chat.model');
 const Message = require('../../models/message.model');
 const Doctor = require('../../models/doctor.model');
 const fs = require('fs');
+const dayjs = require("dayjs");
+const relativeTime = require("dayjs/plugin/relativeTime");
+require("dayjs/locale/ar");
+dayjs.extend(relativeTime);
+dayjs.locale("ar");
 
 const consultationSchema = Joi.object({
   specialty: Joi.string().required(),
@@ -59,22 +64,81 @@ const createConsultation = async (req, res) => {
   }
 };
 
+// const getConsultation = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     if (!id) return res.status(400).json({ error: 'consultationId is required' });
+
+//     const consultation = await Consultation.findById(id);
+//     if (!consultation || consultation.userId.toString() !== req.user._id.toString()) {
+//       return res.status(404).json({ error: 'Consultation not found' });
+//     }
+
+//     res.status(200).json({ consultation });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: 'Server error', details: err.message });
+//   }
+// };
+
 const getConsultation = async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!id) return res.status(400).json({ error: 'consultationId is required' });
+    const consultationId = req.params.id;
+    const userId = req.user._id;
 
-    const consultation = await Consultation.findById(id);
-    if (!consultation || consultation.userId.toString() !== req.user._id.toString()) {
-      return res.status(404).json({ error: 'Consultation not found' });
+    if (!mongoose.Types.ObjectId.isValid(consultationId)) {
+      return res.status(400).json({ message: "Invalid consultation ID" });
     }
 
-    res.status(200).json({ consultation });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error', details: err.message });
+    // جلب الاستشارة + بيانات المستخدم
+    const consultation = await Consultation.findById(consultationId)
+      .populate({
+        path: "userId",
+        select: "firstName lastName gender birthDate city profileImage",
+      });
+
+    if (!consultation) {
+      return res.status(404).json({ message: "Consultation not found" });
+    }
+
+    // التأكد أن الاستشارة تعود لنفس المستخدم
+    if (consultation.userId._id.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Access denied." });
+    }
+
+    // حساب العمر
+    let age = null;
+    if (consultation.userId?.birthDate) {
+      age = dayjs().diff(dayjs(consultation.userId.birthDate), "year");
+    }
+
+    res.status(200).json({
+      consultation: {
+        id: consultation._id,
+        title: consultation.title,
+        description: consultation.description,
+        attachments: consultation.attachments,
+        specialty: consultation.specialty,
+        status: consultation.status,
+        createdAt: consultation.createdAt,
+      },
+      user: {
+        firstName: consultation.userId.firstName,
+        lastName: consultation.userId.lastName,
+        gender: consultation.userId.gender,
+        age,
+        city: consultation.userId.city,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching consultation:", error.message);
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
+
 
 const getUserConsultations = async (req, res) => {
   try {
