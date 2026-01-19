@@ -1,10 +1,11 @@
 const Chat = require('../../models/chat.model');
 const Doctor = require('../../models/doctor.model');
+const User = require('../../models/user.model');
 const ConsultationRequest = require('../../models/consultation-request.model');
 const mongoose = require('mongoose');
 const Joi = require('@hapi/joi');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 const dayjs = require("dayjs");
 const relativeTime = require("dayjs/plugin/relativeTime");
 require("dayjs/locale/ar");
@@ -79,88 +80,124 @@ const updateDoctorProfile = async (req, res) => {
       return res.status(401).json({ error: 'Unauthenticated' });
     }
 
-    if (req.user.role !== 'doctor') {
-      return res.status(403).json({ error: 'Access denied, doctors only' });
-    }
+    const meId = new mongoose.Types.ObjectId(req.user._id);
 
-    const userId = new mongoose.Types.ObjectId(req.user._id);
+    const user = await User.findById(meId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const raw = req.body || {};
-    const allowed = ['specialty', 'licenseNumber', 'yearsOfExperience', 'workPlace'];
-    const picked = {};
-
-    for (const key of allowed) {
-      if (raw[key] !== undefined) {
-        picked[key] = raw[key];
-      }
-    }
-
-    const { error } = updateDoctorSchema.validate(picked);
-    if (error) {
-      return res.status(400).json({ error: error.details[0].message });
-    }
-
-    const doctor = await Doctor.findOne({ userId });
+    const doctor = await Doctor.findOne({ userId: meId });
     if (!doctor) {
       return res.status(404).json({ error: 'Doctor profile not found' });
     }
 
-    Object.assign(doctor, picked);
+    const raw = req.body || {};
 
-    if (req.files?.degreeFiles && req.files.degreeFiles.length > 0) {
-      if (doctor.degreeFiles?.length) {
-        doctor.degreeFiles.forEach(filePath => {
-          const fullPath = path.join(
-            __dirname,
-            '..',
-            filePath.replace(/^\/+/, '') 
-          );
+    const userAllowed = ['firstName','lastName','birthdate','gender','city','email'];
+    const userPicked = {};
+    for (const k of userAllowed) if (raw[k] !== undefined) userPicked[k] = raw[k];
 
-          if (fs.existsSync(fullPath)) {
-            fs.unlinkSync(fullPath);
-          }
-        });
+    const doctorAllowed = ['specialty','yearsOfExperience','workPlace'];
+    const doctorPicked = {};
+    for (const k of doctorAllowed) if (raw[k] !== undefined) doctorPicked[k] = raw[k];
+
+    if (userPicked.firstName) {
+      if (typeof userPicked.firstName !== 'string' || userPicked.firstName.trim().length === 0) {
+        return res.status(400).json({ error: 'firstName must be a non-empty string' });
       }
-
-      doctor.degreeFiles = req.files.degreeFiles.map(
-        f => `/doctorFiles/${f.filename}`
-      );
     }
 
-
-    if (req.files?.licenseFiles && req.files.licenseFiles.length > 0) {
-      if (doctor.licenseFiles?.length) {
-        doctor.licenseFiles.forEach(filePath => {
-          const fullPath = path.join(
-            __dirname,
-            '..',
-            filePath.replace(/^\/+/, '') 
-          );
-
-          if (fs.existsSync(fullPath)) {
-            fs.unlinkSync(fullPath);
-          }
-        });
+    if (userPicked.lastName) {
+      if (typeof userPicked.lastName !== 'string' || userPicked.lastName.trim().length === 0) {
+        return res.status(400).json({ error: 'lastName must be a non-empty string' });
       }
-
-      doctor.licenseFiles = req.files.licenseFiles.map(
-        f => `/doctorFiles/${f.filename}`
-      );
     }
 
-    await doctor.save();
+    if (userPicked.gender) {
+      if (!['male', 'female'].includes(userPicked.gender)) {
+        return res.status(400).json({ error: 'gender must be either male or female' });
+      }
+    }
+
+    if (userPicked.city) {
+      if (typeof userPicked.city !== 'string' || userPicked.city.trim().length === 0) {
+        return res.status(400).json({ error: 'city must be a non-empty string' });
+      }
+    }
+
+    if (userPicked.email) {
+      if (typeof userPicked.email !== 'string' || userPicked.email.trim().length === 0) {
+        return res.status(400).json({ error: 'email must be a valid email' });
+      }
+      const exists = await User.exists({ email: userPicked.email, _id: { $ne: meId } });
+      if (exists) return res.status(400).json({ error: 'email is used from another user' });
+    }
+
+    if (userPicked.birthdate) {
+      const dt = new Date(userPicked.birthdate);
+      userPicked.birthDate = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+      delete userPicked.birthdate;
+    }
+
+    if (doctorPicked.yearsOfExperience !== undefined) {
+      doctorPicked.yearsOfExperience = parseInt(doctorPicked.yearsOfExperience, 10);
+      if (isNaN(doctorPicked.yearsOfExperience) || doctorPicked.yearsOfExperience < 0) {
+        return res.status(400).json({ error: 'yearsOfExperience must be a non-negative number' });
+      }
+    }
+
+    if (doctorPicked.specialty) {
+      if (typeof doctorPicked.specialty !== 'string' || doctorPicked.specialty.trim().length === 0) {
+        return res.status(400).json({ error: 'specialty must be a non-empty string' });
+      }
+    }
+
+    if (doctorPicked.workPlace) {
+      if (typeof doctorPicked.workPlace !== 'string' || doctorPicked.workPlace.trim().length === 0) {
+        return res.status(400).json({ error: 'workPlace must be a non-empty string' });
+      }
+    }
+
+    delete userPicked.phone;
+    delete userPicked.role;
+    delete userPicked.firebaseUid;
+    delete userPicked.uid;
+    delete doctorPicked.licenseNumber;
+    delete doctorPicked.userId;
+    delete doctorPicked._id;
+
+    let updatedUser = null;
+    if (Object.keys(userPicked).length > 0) {
+      updatedUser = await User.findByIdAndUpdate(
+        meId,
+        { $set: userPicked },
+        { new: true, runValidators: true, context: 'query', omitUndefined: true }
+      );
+    } else {
+      updatedUser = user;
+    }
+
+    let updatedDoctor = null;
+    if (Object.keys(doctorPicked).length > 0) {
+      updatedDoctor = await Doctor.findByIdAndUpdate(
+        doctor._id,
+        { $set: doctorPicked },
+        { new: true, runValidators: true, context: 'query', omitUndefined: true }
+      );
+    } else {
+      updatedDoctor = doctor;
+    }
 
     return res.status(200).json({
       message: 'Doctor profile updated successfully',
-      doctor,
+      user: updatedUser,
+      doctor: updatedDoctor
     });
-
   } catch (err) {
     console.error(err);
-    return res.status(500).json({
-      error: 'Server error',
-      details: err.message,
-    });
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Duplicate key', keyValue: err.keyValue });
+    }
+    return res.status(500).json({ error: 'Server error', details: err.message });
   }
 };
 
@@ -505,5 +542,6 @@ module.exports = {
   endConsultation
 
 };
+
 
 
